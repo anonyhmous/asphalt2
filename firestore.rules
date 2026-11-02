@@ -1,0 +1,197 @@
+rules_version = '2';
+
+// =====================================================================================
+// Asphalt V5 - Firestore security rules (server-side enforcement of trial / balance)
+//
+// Threat model: the Android client can be modified, data can be cleared, the app can be
+// reinstalled, the device clock can be changed, and a user can sign in with another
+// Google account. Therefore NOTHING about balance / trial / session is trusted from the
+// client: every rule below is evaluated by Firestore using server time (request.time).
+//
+// One-time setup (Firebase console -> Firestore):
+//   * Create the admin user's document:   admins/<ADMIN_UID>   (any content, e.g. {ok:true})
+//     Clients can never write to /admins, so admin rights can only be granted from the console.
+// =====================================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Phone number verified by Firebase Phone Auth (SMS OTP) and linked to this Google account.
+    // Firebase itself refuses to link one phone credential to two different accounts.
+    function verifiedPhone() {
+      return request.auth.token.get('phone_number', '');        // e.g. +201012345678
+    }
+    function phoneKey() {
+      return verifiedPhone().replace('\\+', '');                   // e.g. 201012345678
+    }
+    function hasVerifiedPhone() { return verifiedPhone().size() >= 10; }
+
+    function googleEmailVerified() {
+      return request.auth.token.get('email', '') != '' &&
+             request.auth.token.get('email_verified', false) == true;
+    }
+
+    function claimPath(key) {
+      return /databases/$(database)/documents/claimed_trials/$(key);
+    }
+
+    function isValidKey(k) {
+      return k is string && k.size() > 0 && k.size() <= 128 && k.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // ------------------------------------------------------------- /drivers
+    // Fields a driver may change on their own profile (never balance, plan, role, phone, email).
+    function profileKeysOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['driverName', 'governorate', 'engineCc', 'vehicleType', 'deviceId',
+                  'lastActiveTimestamp', 'updatedAt', 'isReaderActive']);
+    }
+
+    function statsKeysOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['totalRidesScanned', 'totalNetProfit', 'lastActiveTimestamp']) &&
+        request.resource.data.totalRidesScanned == resource.data.totalRidesScanned + 1;
+    }
+
+    // Starting a new 24h work session: exactly one day is deducted, start time is the SERVER time,
+    // and the previous session must already be over (server time as well).
+    function isSessionStart() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['remainingDays', 'activeSessionStartTime', 'isSessionActive', 'isReaderActive',
+                    'totalSessionsStarted', 'lastActiveTimestamp', 'updatedAt']) &&
+        resource.data.remainingDays > 0 &&
+        request.resource.data.remainingDays == resource.data.remainingDays - 1 &&
+        request.resource.data.activeSessionStartTime == request.time &&
+        request.resource.data.isSessionActive == true &&
+        request.resource.data.totalSessionsStarted == resource.data.totalSessionsStarted + 1 &&
+        (resource.data.get('activeSessionStartTime', null) == null ||
+         request.time >= resource.data.activeSessionStartTime + duration.value(24, 'h'));
+    }
+
+    // Normal state changes inside an already running session never touch the balance.
+    function isSessionHeartbeatOrStop() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['isSessionActive', 'isReaderActive', 'lastActiveTimestamp', 'updatedAt']) &&
+        request.resource.data.get('lastActiveTimestamp', null) is timestamp;
+    }
+
+    function validNewDriver(d, grantedDays) {
+      return d.keys().hasOnly(['userId', 'driverName', 'phone', 'email', 'deviceId', 'trialClaimed',
+                               'governorate', 'engineCc', 'vehicleType', 'remainingDays',
+                               'isSessionActive', 'isReaderActive', 'currentPlan',
+                               'totalSessionsStarted', 'totalRidesScanned', 'totalNetProfit',
+                               'role', 'createdAt', 'updatedAt', 'lastActiveTimestamp']) &&
+             d.userId == request.auth.uid &&
+             d.driverName is string && d.driverName.size() >= 1 && d.driverName.size() <= 100 &&
+             d.phone == verifiedPhone() &&
+             d.email == request.auth.token.email &&
+             d.get('deviceId', '') is string && d.get('deviceId', '').size() <= 100 &&
+             d.remainingDays == grantedDays &&
+             d.isSessionActive == false && d.isReaderActive == false &&
+             d.totalSessionsStarted == 0 && d.totalRidesScanned == 0 && d.totalNetProfit == 0 &&
+             d.role == 'driver' &&
+             d.get('engineCc', 150) is int && d.get('engineCc', 150) >= 50 && d.get('engineCc', 150) <= 1000 &&
+             d.get('governorate', '') is string && d.get('governorate', '').size() <= 50 &&
+             d.get('vehicleType', '') is string && d.get('vehicleType', '').size() <= 50 &&
+             d.createdAt == request.time;
+    }
+
+    match /drivers/{driverId} {
+      allow get: if signedIn() && (driverId == uid() || isAdmin());
+      allow list: if isAdmin();
+
+      // First registration. Needs: Google account (verified email) + verified phone.
+      // 3 free days only if neither the phone nor the device has ever claimed a trial, and the
+      // claim documents are created in the SAME atomic batch (see claimed_trials rules).
+      allow create: if signedIn() && driverId == uid() && googleEmailVerified() && hasVerifiedPhone() && (
+        // (a) trial already used by this phone or this device -> zero days
+        (validNewDriver(request.resource.data, 0) && request.resource.data.currentPlan == 'EXPIRED_TRIAL' &&
+           (exists(claimPath(phoneKey())) ||
+            exists(claimPath('dev_' + request.resource.data.get('deviceId', 'none'))))) ||
+        // (b) first time ever for BOTH phone and device -> 3 days, claims registered atomically
+        (validNewDriver(request.resource.data, 3) && request.resource.data.currentPlan == 'FREE_TRIAL_3_DAYS' &&
+           request.resource.data.trialClaimed == true &&
+           request.resource.data.get('deviceId', '') != '' &&
+           !exists(claimPath(phoneKey())) &&
+           !exists(claimPath('dev_' + request.resource.data.deviceId)) &&
+           existsAfter(claimPath(phoneKey())) &&
+           existsAfter(claimPath('dev_' + request.resource.data.deviceId)) &&
+           getAfter(claimPath(phoneKey())).data.userId == uid())
+      );
+
+      allow update: if signedIn() && (
+        (driverId == uid() && googleEmailVerified() && hasVerifiedPhone() &&
+          (profileKeysOnly() || statsKeysOnly() || isSessionStart() || isSessionHeartbeatOrStop())) ||
+        // Admin: may only ADD days (balance top-up) and set plan label; never touch identity fields.
+        (isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['remainingDays', 'currentPlan', 'updatedAt']) &&
+          request.resource.data.remainingDays >= 0 && request.resource.data.remainingDays <= 3650)
+      );
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ /claimed_trials
+    // Doc ids: <phone digits>  and  dev_<ANDROID_ID>. Create-only: can never be changed or removed
+    // by a client, so clearing data / reinstalling / switching Google accounts cannot reset them.
+    match /claimed_trials/{key} {
+      allow get: if signedIn() && isValidKey(key);   // needed to decide 0 vs 3 days; list is denied
+      allow list: if isAdmin();
+      allow create: if signedIn() && isValidKey(key) && hasVerifiedPhone() &&
+        request.resource.data.keys().hasOnly(['phone', 'userId', 'deviceId', 'claimedAt']) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.phone == phoneKey() &&
+        request.resource.data.claimedAt == request.time &&
+        (key == phoneKey() || (key.matches('^dev_.+') && key == 'dev_' + request.resource.data.get('deviceId', 'none')));
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------------ /rides
+    match /rides/{rideId} {
+      allow get: if signedIn() && (resource.data.driverId == uid() || isAdmin());
+      allow list: if isAdmin() || (signedIn() && resource.data.driverId == uid());
+      allow create: if signedIn() &&
+        request.resource.data.driverId == uid() &&
+        request.resource.data.app is string && request.resource.data.app.size() <= 50 &&
+        request.resource.data.fare is number && request.resource.data.fare >= 0 && request.resource.data.fare <= 100000 &&
+        request.resource.data.netProfit is number &&
+        request.resource.data.verdict is string && request.resource.data.verdict.size() <= 50 &&
+        request.resource.data.get('reasonsSummary', '').size() <= 500 &&
+        request.resource.data.get('pickupAddress', '').size() <= 300 &&
+        request.resource.data.get('dropoffAddress', '').size() <= 300 &&
+        request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------- /subscriptions
+    // Audit trail of paid top-ups. Only an admin can credit days (after checking the InstaPay
+    // receipt received on WhatsApp). Drivers can only read their own history.
+    match /subscriptions/{subId} {
+      allow get: if signedIn() && (resource.data.driverId == uid() || isAdmin());
+      allow list: if isAdmin() || (signedIn() && resource.data.driverId == uid());
+      allow create: if isAdmin() &&
+        request.resource.data.daysAdded is int && request.resource.data.daysAdded > 0 && request.resource.data.daysAdded <= 365 &&
+        request.resource.data.amountPaid is number && request.resource.data.amountPaid >= 0 &&
+        request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ----------------------------------------------------------------- /admins
+    match /admins/{adminId} {
+      allow get: if signedIn() && adminId == uid();   // lets the app know whether to show the panel
+      allow list, write: if false;
+    }
+
+    match /admin_config/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

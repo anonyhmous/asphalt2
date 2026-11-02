@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">أسفلت V5</string>
+    <string name="accessibility_service_label">قارئ طلبات أسفلت V5</string>
+    <string name="accessibility_service_description">يقوم بقراءة عروض الرحلات المعروضة على الشاشة لتطبيقات أوبر، ديدي، وإن درايف لحساب صافي الربح والمسافة والتكلفة وعرض حكم فوري للكابتن.</string>
+    <!-- Used by AsphaltFirebaseSyncRepository. "(default)" is the standard Firestore database id. -->
+    <string name="firestore_database_id" translatable="false">(default)</string>
+</resources>

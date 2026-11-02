@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only the three supported driver apps are delivered to the service (the system filters by package),
+  so the service is not woken up for any other app. Events are limited to what the reader needs and
+  batched (notificationTimeout) to keep CPU/battery low on low-end phones.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="300"
+    android:packageNames="com.ubercab.driver,com.ubercab,com.didiglobal.driver,com.didiglobal.passenger,com.didiglobal.driver.latam,sinet.startup.inDriver,com.indrive,com.indriver"
+    android:settingsActivity="com.asphalt.app.MainActivity" />

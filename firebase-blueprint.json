@@ -1,0 +1,303 @@
+{
+  "entities": {
+    "Driver": {
+      "title": "Driver",
+      "description": "Registered Asphalt driver profile, active 24h work session state, and subscription balance. Session end = activeSessionStartTime + 24h (derived); balance changes only via admin or the rule-validated session start.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the driver"
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Driver full or display name"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Driver contact number"
+        },
+        "email": {
+          "type": "string",
+          "description": "Driver Google email"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Android device ID"
+        },
+        "trialClaimed": {
+          "type": "boolean",
+          "description": "Whether driver has claimed the 3-day free trial"
+        },
+        "governorate": {
+          "type": "string",
+          "description": "Egyptian governorate"
+        },
+        "engineCc": {
+          "type": "integer",
+          "description": "Motorcycle engine capacity in CC (150, 200, 250)"
+        },
+        "vehicleType": {
+          "type": "string",
+          "description": "Vehicle type descriptor"
+        },
+        "remainingDays": {
+          "type": "integer",
+          "description": "Prepaid work days remaining in balance"
+        },
+        "activeSessionStartTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when 24h active session started"
+        },
+        "isSessionActive": {
+          "type": "boolean",
+          "description": "Whether current 24-hour work session is currently running"
+        },
+        "isReaderActive": {
+          "type": "boolean",
+          "description": "Whether the screen reader is actively turned on"
+        },
+        "currentPlan": {
+          "type": "string",
+          "description": "Subscription tier or plan label"
+        },
+        "totalSessionsStarted": {
+          "type": "integer",
+          "description": "Total 24h sessions initiated"
+        },
+        "totalRidesScanned": {
+          "type": "integer",
+          "description": "Total ride requests analyzed"
+        },
+        "totalNetProfit": {
+          "type": "number",
+          "description": "Cumulative estimated net earnings"
+        },
+        "role": {
+          "type": "string",
+          "description": "User role: driver or admin"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "driverName",
+        "remainingDays",
+        "isSessionActive",
+        "isReaderActive",
+        "createdAt"
+      ]
+    },
+    "Ride": {
+      "title": "Ride",
+      "description": "Evaluated ride request scanned from Uber, DiDi, or inDrive",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Auth UID of the evaluating driver"
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Driver display name"
+        },
+        "app": {
+          "type": "string",
+          "description": "Ride hailing service (Uber, DiDi, inDrive)"
+        },
+        "fare": {
+          "type": "number",
+          "description": "Offered gross fare in EGP"
+        },
+        "netProfit": {
+          "type": "number",
+          "description": "Calculated net profit in EGP"
+        },
+        "verdict": {
+          "type": "string",
+          "description": "Engine verdict (ACCEPT, REJECT, NEGOTIATE, etc.)"
+        },
+        "pickupKm": {
+          "type": "number",
+          "description": "Pickup distance in km"
+        },
+        "tripKm": {
+          "type": "number",
+          "description": "Trip distance in km"
+        },
+        "reasonsSummary": {
+          "type": "string",
+          "description": "Brief summary of decision factors"
+        },
+        "pickupAddress": {
+          "type": "string",
+          "description": "Parsed pickup address"
+        },
+        "dropoffAddress": {
+          "type": "string",
+          "description": "Parsed destination address"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "driverId",
+        "app",
+        "fare",
+        "netProfit",
+        "verdict",
+        "createdAt"
+      ]
+    },
+    "SubscriptionRecord": {
+      "title": "SubscriptionRecord",
+      "description": "Prepaid subscription top-up transaction record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Auth UID of the subscriber"
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Driver display name"
+        },
+        "planType": {
+          "type": "string",
+          "description": "Plan key (MONTHLY, WEEKLY, CUSTOM)"
+        },
+        "daysAdded": {
+          "type": "integer",
+          "description": "Number of active session days credited"
+        },
+        "amountPaid": {
+          "type": "number",
+          "description": "Payment amount in EGP"
+        },
+        "remainingDaysAfter": {
+          "type": "integer",
+          "description": "Updated balance of days"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "driverId",
+        "planType",
+        "daysAdded",
+        "amountPaid",
+        "createdAt"
+      ]
+    },
+    "AdminConfig": {
+      "title": "AdminConfig",
+      "description": "System broadcast messages and global configuration",
+      "type": "object",
+      "properties": {
+        "announcement": {
+          "type": "string",
+          "description": "Broadcast message from admin"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "announcement",
+        "updatedAt"
+      ]
+    },
+    "ClaimedTrial": {
+      "title": "ClaimedTrial",
+      "description": "Create-only registry of claimed 3-day trials. Doc ids: <verified phone digits> and dev_<ANDROID_ID>. Never updated or deleted by clients.",
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "Normalized driver phone number"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the claiming driver"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Device hardware ID"
+        },
+        "claimedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "phone",
+        "userId",
+        "claimedAt"
+      ]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Document id = Auth UID of an administrator. Created only from the Firebase console; clients can read only their own.",
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "firestore": {
+    "/drivers/{driverId}": {
+      "schema": {
+        "$ref": "#/entities/Driver"
+      },
+      "description": "Driver profile and 24h active session balance status"
+    },
+    "/rides/{rideId}": {
+      "schema": {
+        "$ref": "#/entities/Ride"
+      },
+      "description": "Real-time trip evaluation logs visible to driver and admin"
+    },
+    "/subscriptions/{subId}": {
+      "schema": {
+        "$ref": "#/entities/SubscriptionRecord"
+      },
+      "description": "Top-up history and audit trail"
+    },
+    "/claimed_trials/{phone}": {
+      "schema": {
+        "$ref": "#/entities/ClaimedTrial"
+      },
+      "description": "Registered phone number 3-day trial record"
+    },
+    "/admin_config/general": {
+      "schema": {
+        "$ref": "#/entities/AdminConfig"
+      },
+      "description": "Global announcement and system settings"
+    },
+    "/admins/{uid}": {
+      "schema": {
+        "$ref": "#/entities/Admin"
+      },
+      "description": "Grants admin panel + day crediting (see firestore.rules)"
+    }
+  }
+}

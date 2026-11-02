@@ -1,0 +1,6 @@
+{
+  "name": "أسفلت V5",
+  "description": "Smart driver companion and ride request evaluator for drivers (Uber, DiDi, inDrive) - Asphalt V5",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

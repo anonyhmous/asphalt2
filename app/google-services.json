@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "998675529564",
+    "project_id": "asphalt-37f49",
+    "storage_bucket": "asphalt-37f49.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:998675529564:android:b33a044cd4b8a350700b99",
+        "android_client_info": {
+          "package_name": "com.asphalt.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC41ViD1rx_t4eiygNutIkTWUjcpZtLwYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
