@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-  namespace = "com.asphalt.app"
+  namespace = "com.asphalt.driver"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.asphalt.app"
+    applicationId = "com.asphalt.driver"
     minSdk = 26
     targetSdk = 36
     versionCode = 6
